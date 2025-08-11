@@ -18,6 +18,7 @@ class ChessGame {
 
     this.gameOver = false;
     this.gameResult = null;
+    this.enPassantTarget = null; // Stores the position of pawn that can be captured en passant
 
     this.initializeGame();
   }
@@ -157,6 +158,26 @@ class ChessGame {
       }
     });
 
+    // En passant
+    if (this.enPassantTarget) {
+      const enPassantRow = color === "white" ? 3 : 4; // Row where en passant can happen
+      if (row === enPassantRow) {
+        [-1, 1].forEach((colOffset) => {
+          const targetCol = col + colOffset;
+          if (
+            targetCol === this.enPassantTarget.col &&
+            this.enPassantTarget.row === row
+          ) {
+            moves.push({
+              row: row + direction,
+              col: targetCol,
+              isEnPassant: true,
+            });
+          }
+        });
+      }
+    }
+
     return moves;
   }
 
@@ -277,7 +298,75 @@ class ChessGame {
       }
     });
 
+    // Castling
+    if (!this.hasKingMoved[color] && !this.isInCheck(color)) {
+      // Kingside castling
+      if (this.canCastle(color, "kingside")) {
+        moves.push({ row, col: col + 2, isCastle: "kingside" });
+      }
+
+      // Queenside castling
+      if (this.canCastle(color, "queenside")) {
+        moves.push({ row, col: col - 2, isCastle: "queenside" });
+      }
+    }
+
     return moves;
+  }
+
+  canCastle(color, side) {
+    const row = color === "white" ? 7 : 0;
+    const kingCol = 4;
+
+    // Check if rook has moved
+    if (this.hasRookMoved[color][side]) {
+      return false;
+    }
+
+    if (side === "kingside") {
+      // Check if squares between king and rook are empty
+      if (this.board[row][5] || this.board[row][6]) {
+        return false;
+      }
+
+      // Check if king would pass through or end up in check
+      if (
+        this.wouldBeInCheckAfterMove(row, kingCol, row, 5, color) ||
+        this.wouldBeInCheckAfterMove(row, kingCol, row, 6, color)
+      ) {
+        return false;
+      }
+
+      // Check if rook is still there
+      const rookPiece = this.board[row][7];
+      return (
+        rookPiece &&
+        this.getPieceType(rookPiece) === "rook" &&
+        this.getPieceColor(rookPiece) === color
+      );
+    } else {
+      // queenside
+      // Check if squares between king and rook are empty
+      if (this.board[row][3] || this.board[row][2] || this.board[row][1]) {
+        return false;
+      }
+
+      // Check if king would pass through or end up in check
+      if (
+        this.wouldBeInCheckAfterMove(row, kingCol, row, 3, color) ||
+        this.wouldBeInCheckAfterMove(row, kingCol, row, 2, color)
+      ) {
+        return false;
+      }
+
+      // Check if rook is still there
+      const rookPiece = this.board[row][0];
+      return (
+        rookPiece &&
+        this.getPieceType(rookPiece) === "rook" &&
+        this.getPieceColor(rookPiece) === color
+      );
+    }
   }
 
   findKing(color) {
@@ -403,6 +492,9 @@ class ChessGame {
         this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)
       } is in check!`;
       this.displayGameResult();
+    } else {
+      // Clear check message if no longer in check
+      this.gameResult = null;
     }
   }
 
@@ -519,6 +611,28 @@ class ChessGame {
   movePiece(fromRow, fromCol, toRow, toCol) {
     const piece = this.board[fromRow][fromCol];
     const capturedPiece = this.board[toRow][toCol];
+    const move = this.validMoves.find(
+      (m) => m.row === toRow && m.col === toCol
+    );
+
+    // Handle special moves
+    if (move && move.isEnPassant) {
+      // En passant capture
+      this.board[this.enPassantTarget.row][this.enPassantTarget.col] = null;
+    } else if (move && move.isCastle) {
+      // Castling
+      const row = fromRow;
+      if (move.isCastle === "kingside") {
+        // Move rook from h-file to f-file
+        this.board[row][5] = this.board[row][7];
+        this.board[row][7] = null;
+      } else {
+        // queenside
+        // Move rook from a-file to d-file
+        this.board[row][3] = this.board[row][0];
+        this.board[row][0] = null;
+      }
+    }
 
     // Track king and rook movements for castling
     if (this.getPieceType(piece) === "king") {
@@ -534,6 +648,15 @@ class ChessGame {
       }
     }
 
+    // Set en passant target if pawn moved two squares
+    this.enPassantTarget = null;
+    if (
+      this.getPieceType(piece) === "pawn" &&
+      Math.abs(toRow - fromRow) === 2
+    ) {
+      this.enPassantTarget = { row: fromRow, col: fromCol };
+    }
+
     // Record move in history
     this.moveHistory.push({
       from: { row: fromRow, col: fromCol },
@@ -541,6 +664,8 @@ class ChessGame {
       piece: piece,
       captured: capturedPiece,
       player: this.currentPlayer,
+      isEnPassant: move && move.isEnPassant,
+      isCastle: move && move.isCastle,
     });
 
     // Execute the move
@@ -567,6 +692,7 @@ class ChessGame {
     this.currentPlayer = "white";
     this.gameOver = false;
     this.gameResult = null;
+    this.enPassantTarget = null;
     this.clearSelection();
     this.turnIndicator.textContent = "White's Turn";
     this.turnIndicator.style.color = "";
