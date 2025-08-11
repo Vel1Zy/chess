@@ -1,0 +1,61 @@
+Creating a simple two-player local chess game
+
+Here's a simple outline for creating a two-player chess game:
+
+## Project Structure
+```
+chess-game/
+├── index.html
+├── style.css
+├── script.js
+└── images/ (chess piece sprites)
+```
+
+## Core Components
+
+### HTML Structure
+- 8x8 grid container for the chessboard
+- Square divs with coordinate classes (a1-h8)
+- Game info display (current player, status)
+
+### CSS Styling
+- Alternating light/dark squares
+- Piece positioning and sprites
+- Hover effects and move highlighting
+- Responsive board sizing
+
+### JavaScript Logic
+
+**1. Game State Management**
+- Board array (8x8) representing piece positions
+- Current player tracking
+- Game status (playing, check, checkmate, stalemate)
+
+**2. Piece Classes**
+- Base Piece class with common properties
+- Individual piece classes (Pawn, Rook, Bishop, Knight, Queen, King)
+- Each with specific movement validation
+
+**3. Core Functions**
+- `initializeBoard()` - Set up starting positions
+- `renderBoard()` - Update DOM with current state
+- `handleSquareClick()` - Process player moves
+- `isValidMove()` - Check move legality
+- `makeMove()` - Execute valid moves
+- `isInCheck()` - Check detection
+- `switchPlayer()` - Toggle turns
+
+**4. Move Validation**
+- Path checking (no piece blocking)
+- Piece-specific movement rules
+- Check/checkmate detection
+- Castling and en passant (optional)
+
+## Implementation Steps
+1. Create basic HTML board structure
+2. Style the chessboard and pieces
+3. Implement piece movement logic
+4. Add game state management
+5. Handle special rules and win conditions
+
+This gives you a playable local two-player chess game. You can expand with features like move history, time controls, or online multiplayer later.
