@@ -130,7 +130,7 @@ class ChessGame {
 
   getPawnMoves(row, col, color) {
     const moves = [];
-    const direction = color === "white" ? -1 : 1; // White moves up (-1), black moves down (+1)
+    const direction = color === "white" ? -1 : 1;
     const startRow = color === "white" ? 6 : 1;
 
     // Move forward one square
@@ -160,22 +160,20 @@ class ChessGame {
 
     // En passant
     if (this.enPassantTarget) {
-      const enPassantRow = color === "white" ? 3 : 4; // Row where en passant can happen
-      if (row === enPassantRow) {
-        [-1, 1].forEach((colOffset) => {
-          const targetCol = col + colOffset;
-          if (
-            targetCol === this.enPassantTarget.col &&
-            this.enPassantTarget.row === row
-          ) {
-            moves.push({
-              row: row + direction,
-              col: targetCol,
-              isEnPassant: true,
-            });
-          }
-        });
-      }
+      [-1, 1].forEach((colOffset) => {
+        const newCol = col + colOffset;
+        if (
+          newCol === this.enPassantTarget.col &&
+          row === this.enPassantTarget.row &&
+          this.isValidSquare(row + direction, newCol)
+        ) {
+          moves.push({
+            row: row + direction,
+            col: newCol,
+            isEnPassant: true,
+          });
+        }
+      });
     }
 
     return moves;
@@ -404,6 +402,83 @@ class ChessGame {
     return false;
   }
 
+  getRawPawnMoves(row, col, color) {
+    const moves = [];
+    const direction = color === "white" ? -1 : 1;
+    const startRow = color === "white" ? 6 : 1;
+
+    // Move forward one square
+    if (
+      this.isValidSquare(row + direction, col) &&
+      !this.board[row + direction][col]
+    ) {
+      moves.push({ row: row + direction, col });
+
+      // Move forward two squares from starting position
+      if (row === startRow && !this.board[row + 2 * direction][col]) {
+        moves.push({ row: row + 2 * direction, col });
+      }
+    }
+
+    // Capture diagonally
+    [-1, 1].forEach((colOffset) => {
+      const newRow = row + direction;
+      const newCol = col + colOffset;
+      if (this.isValidSquare(newRow, newCol)) {
+        const targetPiece = this.board[newRow][newCol];
+        if (targetPiece && this.getPieceColor(targetPiece) !== color) {
+          moves.push({ row: newRow, col: newCol });
+        }
+      }
+    });
+
+    // En passant
+    if (this.enPassantTarget) {
+      [-1, 1].forEach((colOffset) => {
+        const newCol = col + colOffset;
+        if (
+          newCol === this.enPassantTarget.col &&
+          row === this.enPassantTarget.row &&
+          this.isValidSquare(row + direction, newCol)
+        ) {
+          moves.push({
+            row: row + direction,
+            col: newCol,
+            isEnPassant: true,
+          });
+        }
+      });
+    }
+
+    return moves;
+  }
+
+  getRawKingMoves(row, col, color) {
+    const moves = [];
+    const directions = [
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ];
+
+    directions.forEach(([rowOffset, colOffset]) => {
+      const newRow = row + rowOffset;
+      const newCol = col + colOffset;
+
+      if (this.canMoveToSquare(newRow, newCol, color)) {
+        moves.push({ row: newRow, col: newCol });
+      }
+    });
+
+    // NOTE: No castling in raw moves to avoid recursion
+    return moves;
+  }
+
   getRawMoves(row, col) {
     // Get moves without checking if they put own king in check
     const piece = this.board[row][col];
@@ -416,7 +491,7 @@ class ChessGame {
 
     switch (pieceType) {
       case "pawn":
-        moves.push(...this.getPawnMoves(row, col, pieceColor));
+        moves.push(...this.getRawPawnMoves(row, col, pieceColor));
         break;
       case "rook":
         moves.push(...this.getRookMoves(row, col, pieceColor));
@@ -431,7 +506,7 @@ class ChessGame {
         moves.push(...this.getQueenMoves(row, col, pieceColor));
         break;
       case "king":
-        moves.push(...this.getKingMoves(row, col, pieceColor));
+        moves.push(...this.getRawKingMoves(row, col, pieceColor));
         break;
     }
 
@@ -617,7 +692,7 @@ class ChessGame {
 
     // Handle special moves
     if (move && move.isEnPassant) {
-      // En passant capture
+      // En passant capture - remove the captured pawn
       this.board[this.enPassantTarget.row][this.enPassantTarget.col] = null;
     } else if (move && move.isCastle) {
       // Castling
@@ -654,7 +729,11 @@ class ChessGame {
       this.getPieceType(piece) === "pawn" &&
       Math.abs(toRow - fromRow) === 2
     ) {
-      this.enPassantTarget = { row: fromRow, col: fromCol };
+      // Store the position of the pawn that can be captured en passant
+      this.enPassantTarget = {
+        row: toRow,
+        col: toCol,
+      };
     }
 
     // Record move in history
