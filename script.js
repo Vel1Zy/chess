@@ -371,30 +371,6 @@ class ChessGame {
     this.validMoves = [];
   }
 
-  getValidMoves(row, col) {
-    // Basic movement validation (simplified)
-    const moves = [];
-    const piece = this.board[row][col];
-
-    // This is a simplified version - you can expand this with proper chess rules
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        if (r !== row || c !== col) {
-          const targetPiece = this.board[r][c];
-          // Can move to empty square or capture opponent piece
-          if (
-            !targetPiece ||
-            this.getPieceColor(targetPiece) !== this.currentPlayer
-          ) {
-            moves.push({ row: r, col: c });
-          }
-        }
-      }
-    }
-
-    return moves;
-  }
-
   movePiece(fromRow, fromCol, toRow, toCol) {
     const piece = this.board[fromRow][fromCol];
     const capturedPiece = this.board[toRow][toCol];
