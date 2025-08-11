@@ -16,6 +16,9 @@ class ChessGame {
       black: { kingside: false, queenside: false },
     };
 
+    this.gameOver = false;
+    this.gameResult = null;
+
     this.initializeGame();
   }
 
@@ -60,7 +63,7 @@ class ChessGame {
     const piece = this.board[row][col];
     const moves = [];
 
-    if (!piece) return moves;
+    if (!piece || this.gameOver) return moves;
 
     const pieceType = this.getPieceType(piece);
     const pieceColor = this.getPieceColor(piece);
@@ -86,7 +89,11 @@ class ChessGame {
         break;
     }
 
-    return moves;
+    // Filter out moves that would put own king in check
+    return moves.filter(
+      (move) =>
+        !this.wouldBeInCheckAfterMove(row, col, move.row, move.col, pieceColor)
+    );
   }
 
   getPieceType(piece) {
@@ -273,6 +280,142 @@ class ChessGame {
     return moves;
   }
 
+  findKing(color) {
+    const kingPiece = color === "white" ? "♔" : "♚";
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        if (this.board[row][col] === kingPiece) {
+          return { row, col };
+        }
+      }
+    }
+    return null;
+  }
+
+  isInCheck(color) {
+    const king = this.findKing(color);
+    if (!king) return false;
+
+    // Check if any opponent piece can attack the king
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = this.board[row][col];
+        if (piece && this.getPieceColor(piece) !== color) {
+          const attackMoves = this.getRawMoves(row, col);
+          if (
+            attackMoves.some(
+              (move) => move.row === king.row && move.col === king.col
+            )
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  getRawMoves(row, col) {
+    // Get moves without checking if they put own king in check
+    const piece = this.board[row][col];
+    const moves = [];
+
+    if (!piece) return moves;
+
+    const pieceType = this.getPieceType(piece);
+    const pieceColor = this.getPieceColor(piece);
+
+    switch (pieceType) {
+      case "pawn":
+        moves.push(...this.getPawnMoves(row, col, pieceColor));
+        break;
+      case "rook":
+        moves.push(...this.getRookMoves(row, col, pieceColor));
+        break;
+      case "bishop":
+        moves.push(...this.getBishopMoves(row, col, pieceColor));
+        break;
+      case "knight":
+        moves.push(...this.getKnightMoves(row, col, pieceColor));
+        break;
+      case "queen":
+        moves.push(...this.getQueenMoves(row, col, pieceColor));
+        break;
+      case "king":
+        moves.push(...this.getKingMoves(row, col, pieceColor));
+        break;
+    }
+
+    return moves;
+  }
+
+  wouldBeInCheckAfterMove(fromRow, fromCol, toRow, toCol, color) {
+    // Simulate the move
+    const originalPiece = this.board[toRow][toCol];
+    const movingPiece = this.board[fromRow][fromCol];
+
+    this.board[toRow][toCol] = movingPiece;
+    this.board[fromRow][fromCol] = null;
+
+    const inCheck = this.isInCheck(color);
+
+    // Restore the board
+    this.board[fromRow][fromCol] = movingPiece;
+    this.board[toRow][toCol] = originalPiece;
+
+    return inCheck;
+  }
+
+  hasValidMoves(color) {
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = this.board[row][col];
+        if (piece && this.getPieceColor(piece) === color) {
+          const validMoves = this.getValidMoves(row, col);
+          if (validMoves.length > 0) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  checkGameOver() {
+    const currentPlayerInCheck = this.isInCheck(this.currentPlayer);
+    const hasValidMoves = this.hasValidMoves(this.currentPlayer);
+
+    if (!hasValidMoves) {
+      this.gameOver = true;
+      if (currentPlayerInCheck) {
+        // Checkmate
+        const winner = this.currentPlayer === "white" ? "black" : "white";
+        this.gameResult = `Checkmate! ${
+          winner.charAt(0).toUpperCase() + winner.slice(1)
+        } wins!`;
+      } else {
+        // Stalemate
+        this.gameResult = "Stalemate! It's a draw.";
+      }
+      this.displayGameResult();
+    } else if (currentPlayerInCheck) {
+      this.gameResult = `${
+        this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)
+      } is in check!`;
+      this.displayGameResult();
+    }
+  }
+
+  displayGameResult() {
+    if (this.gameResult) {
+      this.turnIndicator.textContent = this.gameResult;
+      if (this.gameOver) {
+        this.turnIndicator.style.color = "red";
+        this.turnIndicator.style.fontWeight = "bold";
+      }
+    }
+  }
+
   initializeGame() {
     this.renderBoard();
     this.resetBtn.addEventListener("click", () => this.resetGame());
@@ -316,6 +459,8 @@ class ChessGame {
   }
 
   handleSquareClick(row, col) {
+    if (this.gameOver) return;
+
     const clickedSquare = this.gameBoard.children[row * 8 + col];
     const piece = this.board[row][col];
 
@@ -403,20 +548,35 @@ class ChessGame {
     this.board[fromRow][fromCol] = null;
 
     this.renderBoard();
+
+    // Check for game over conditions after the move
+    this.checkGameOver();
   }
 
   switchPlayer() {
     this.currentPlayer = this.currentPlayer === "white" ? "black" : "white";
-    this.turnIndicator.textContent = `${
-      this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)
-    }'s Turn`;
+    if (!this.gameOver && !this.gameResult) {
+      this.turnIndicator.textContent = `${
+        this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)
+      }'s Turn`;
+    }
   }
 
   resetGame() {
     this.board = this.initializeBoard();
     this.currentPlayer = "white";
+    this.gameOver = false;
+    this.gameResult = null;
     this.clearSelection();
     this.turnIndicator.textContent = "White's Turn";
+    this.turnIndicator.style.color = "";
+    this.turnIndicator.style.fontWeight = "";
+    this.moveHistory = [];
+    this.hasKingMoved = { white: false, black: false };
+    this.hasRookMoved = {
+      white: { kingside: false, queenside: false },
+      black: { kingside: false, queenside: false },
+    };
     this.renderBoard();
   }
 }
